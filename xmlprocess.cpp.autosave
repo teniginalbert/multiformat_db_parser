@@ -1,0 +1,141 @@
+#include "QXmlStreamReader"
+#include "QDir"
+#include "mytablemodel.h"
+#include "progress.h"
+#include "QDebug"
+
+void readXml(QString path, Progress &progress) {
+    int successful = 0;
+    QDir dir(path);
+    if (dir.exists() && path != "" && path != nullptr) {
+    myTableModel *model = new myTableModel;
+
+    dir.setFilter(QDir::Files | QDir::NoSymLinks);
+    dir.setSorting(QDir::Name);
+    QFileInfoList list = dir.entryInfoList();
+    for (int i = 0; i < list.size(); ++i) {
+
+       progress.setValue(i * 100 / list.size());
+
+        QFileInfo fileInfo = list.at(i);
+        if (fileInfo.exists() && fileInfo.isFile()) {
+            if (fileInfo.fileName().right(4) == ".xml") {
+                    QString file_fullname = fileInfo.path() + "/" + fileInfo.fileName();
+                    QFile *file = new QFile(file_fullname);
+                    if (!file->open(QIODevice::ReadOnly | QIODevice::Text)) {
+                           progress.setMsg("Невозможно открыть файл " + fileInfo.fileName() + "\n");
+                        }
+                    else {
+                        QXmlStreamReader *xmlReader = new QXmlStreamReader(file);
+
+                        QString texteditor, fileformats, encoding;
+                        bool hasintellisense, hasplugins, cancompile;
+
+                        while(!xmlReader->atEnd() && !xmlReader->hasError()) {
+                                QXmlStreamReader::TokenType token = xmlReader->readNext();
+                                if(token == QXmlStreamReader::StartDocument) {
+                                        continue;
+                                }
+                                if(token == QXmlStreamReader::StartElement) {
+                                        if(xmlReader->name() == "root") {
+                                                continue;
+                                        }
+                                        if(xmlReader->name() == "texteditor") {
+                                            texteditor =  xmlReader->readElementText();
+                                        }
+                                        else if(xmlReader->name() == "fileformats") {
+                                           fileformats = xmlReader->readElementText();
+                                        }
+                                        else if(xmlReader->name() == "encoding") {
+                                            encoding = xmlReader->readElementText();
+                                        }
+                                        else if(xmlReader->name() == "hasintellisense") {
+                                            hasintellisense = static_cast
+                                                    <QVariant>
+                                                    (xmlReader->readElementText()).toBool();
+                                        }
+                                        else if(xmlReader->name() == "hasplugins") {
+                                            hasplugins = static_cast
+                                                    <QVariant>
+                                                    (xmlReader->readElementText()).toBool();
+                                        }
+                                        else if(xmlReader->name() == "cancompile") {
+                                            cancompile = static_cast
+                                                    <QVariant>
+                                                    (xmlReader->readElementText()).toBool();
+                                        }
+                                }
+                        }
+
+                        if(xmlReader->hasError()) {
+                            QString error =
+                                    "Не удался парсинг файла " +
+                                    fileInfo.fileName() +
+                                    ":\n" +
+                                    xmlReader->errorString() +
+                                    "\n";
+                                progress.setMsg(error);
+                        } else {
+                            QString name = fileInfo.fileName();
+                            model->appendRecord(name,
+                                                texteditor,
+                                                fileformats,
+                                                encoding,
+                                                hasintellisense,
+                                                hasplugins,
+                                                cancompile);
+                           successful++;
+                        }
+                        xmlReader->clear();
+                        file->close();
+                     }
+            }
+            else {
+               progress.setMsg("Файл " + fileInfo.fileName() + " не является XML-файлом\n");
+            }
+        }
+        else {
+           progress.setMsg("Файл " + fileInfo.fileName() + " не существует или повреждён\n");
+        }
+    }
+
+    progress.setValue(100);
+    progress.setMsg("Парсинг XML-файлов закончен, файлов успешно разобрано: " + QString::number(successful));
+    progress.setModel(model);
+    }
+    else {
+        progress.setMsg("Выбранная директория не существует!");
+        progress.setModel(new myTableModel);
+    }
+}
+
+void writeXml(QAbstractItemModel *model, int row, Progress &progress) {
+
+    int columnCount = model->columnCount();
+    const QVariant& filename = model->index(row, 0).data(Qt::DisplayRole);
+    QFile file(filename.toString());
+    if (file.open(QIODevice::WriteOnly)) {
+        QXmlStreamWriter stream(&file);
+        stream.setAutoFormatting(true);
+        stream.writeStartDocument();
+        stream.writeStartElement("root");
+        for (int j = 1; j < columnCount; j++) {
+            const QVariant& value =
+                    model->index(row, j).data(Qt::DisplayRole);
+            stream.writeTextElement(
+                        model->headerData(j,
+                                          Qt::Horizontal,
+                                          Qt::DisplayRole).toString(),
+                        value.toString());
+        }
+        stream.writeEndElement();
+        stream.writeEndElement();
+        stream.writeEndDocument();
+        file.close();
+
+        progress.setMsg("Файл " + filename.toString() + " успешно сохранен!\n");
+    }
+    else
+        progress.setMsg("Не удалось создать/открыть файл '" + filename.toString() +"'\n");
+
+}
