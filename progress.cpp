@@ -23,8 +23,3 @@ void Progress::setModel(myTableModel *model)
      emit modelChanged(model);
    }
 }
-
-//Progress::progress(QObject *parent) : QObject(parent)
-//{
-
-//}

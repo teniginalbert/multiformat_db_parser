@@ -22,13 +22,6 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow) {
     ui->setupUi(this);
-
-    Progress progress;
-    QObject::connect(&progress, SIGNAL(msgChanged(QString)), this, SLOT(to_log(QString)));
-    QObject::connect(&progress, SIGNAL(modelChanged(myTableModel*)), this, SLOT(set_model(myTableModel*)));
-
-    std::thread thread(dbRead, std::ref(progress));
-    thread.join();
 }
 
 MainWindow::~MainWindow()
@@ -44,8 +37,7 @@ void MainWindow::on_loadButton_clicked()
     QObject::connect(&progress, SIGNAL(valueChanged(int)), ui->progressBar, SLOT(setValue(int)));
     QObject::connect(&progress, SIGNAL(msgChanged(QString)), this, SLOT(to_log(QString)));
     QObject::connect(&progress, SIGNAL(modelChanged(myTableModel*)), this, SLOT(set_model(myTableModel*)));
-    std::thread thread(readXml, std::ref(path), std::ref(progress));
-    thread.join();
+    readXml(path, progress);
 }
 
 void MainWindow::on_exploreButton_clicked()
